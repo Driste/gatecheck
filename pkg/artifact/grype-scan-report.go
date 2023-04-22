@@ -7,7 +7,7 @@ import (
 
 	"github.com/anchore/grype/grype/presenter/models"
 	"github.com/gatecheckdev/gatecheck/internal/log"
-	gcStrings "github.com/gatecheckdev/gatecheck/pkg/strings"
+	"github.com/gatecheckdev/gatecheck/pkg/table"
 )
 
 type GrypeScanReport models.Document
@@ -15,21 +15,21 @@ type GrypeScanReport models.Document
 var GrypeValidationFailed = errors.New("grype validation failed")
 
 func (r GrypeScanReport) String() string {
-	table := new(gcStrings.Table).WithHeader("Severity", "Package", "Version", "Link")
+	tbl := new(table.Table).WithHeader("Severity", "Package", "Version", "Link")
 
 	for _, item := range r.Matches {
-		table = table.WithRow(item.Vulnerability.Severity,
+		tbl = tbl.WithRow(item.Vulnerability.Severity,
 			item.Artifact.Name, item.Artifact.Version, item.Vulnerability.DataSource)
 	}
 
 	// Sort the rows by Severity then Package
-	severitiesOrder := gcStrings.StrOrder{"Critical", "High", "Medium", "Low", "Negligible", "Unknown"}
-	table = table.SortBy([]gcStrings.SortBy{
-		{Name: "Severity", Mode: gcStrings.AscCustom, Order: severitiesOrder},
-		{Name: "Package", Mode: gcStrings.Asc},
+	severitiesOrder := table.StrOrder{"Critical", "High", "Medium", "Low", "Negligible", "Unknown"}
+	tbl = tbl.SortBy([]table.SortBy{
+		{Name: "Severity", Mode: table.AscCustom, Order: severitiesOrder},
+		{Name: "Package", Mode: table.Asc},
 	}).Sort()
 
-	return table.String()
+	return tbl.String()
 }
 
 type GrypeConfig struct {

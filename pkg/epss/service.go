@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	gcStrings "github.com/gatecheckdev/gatecheck/pkg/strings"
+	"github.com/gatecheckdev/gatecheck/pkg/table"
 )
 
 var ErrAPIPartialFail = errors.New("an API request failed")
@@ -134,7 +134,7 @@ func cveMap(CVEs []CVE) map[string]CVE {
 
 func Sprint(data []Data) string {
 
-	table := new(gcStrings.Table).WithHeader("CVE", "Severity", "EPSS", "Percentile", "Date", "Link")
+	tbl := new(table.Table).WithHeader("CVE", "Severity", "EPSS", "Percentile", "Date", "Link")
 
 	percentage := func(s string) string {
 		f, _ := strconv.ParseFloat(s, 32)
@@ -143,13 +143,13 @@ func Sprint(data []Data) string {
 	}
 
 	for _, d := range data {
-		table = table.WithRow(d.CVE, d.Severity, percentage(d.EPSS), percentage(d.Percentile), d.Date, d.URL)
+		tbl = tbl.WithRow(d.CVE, d.Severity, percentage(d.EPSS), percentage(d.Percentile), d.Date, d.URL)
 	}
 
 	// Dsc because EPSS has been converted into a percentage
-	table = table.SortBy([]gcStrings.SortBy{
-		{Name: "EPSS", Mode: gcStrings.Dsc},
+	tbl = tbl.SortBy([]table.SortBy{
+		{Name: "EPSS", Mode: table.Dsc},
 	}).Sort()
 
-	return table.String()
+	return tbl.String()
 }

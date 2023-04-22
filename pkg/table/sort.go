@@ -1,4 +1,4 @@
-package strings
+package table
 
 import (
 	"sort"
