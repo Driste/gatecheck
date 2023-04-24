@@ -32,6 +32,14 @@ func Infof(format string, v ...any) {
 	logger.Info().Int64(elapseLabel, getElapsed()).Msg(fmt.Sprintf(format, v...))
 }
 
+func Debug(msg string) {
+	logger.Debug().Int64(elapseLabel, getElapsed()).Msg(msg)
+}
+
+func Debugf(format string, v ...any) {
+	logger.Debug().Int64(elapseLabel, getElapsed()).Msg(fmt.Sprintf(format, v...))
+}
+
 func Warn(msg string) {
 	logger.Warn().Int64(elapseLabel, getElapsed()).Msg(msg)
 }

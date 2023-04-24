@@ -28,6 +28,7 @@ type DDExportService interface {
 
 type EPSSService interface {
 	Get([]epss.CVE) ([]epss.Data, error)
+	CreateCache() error
 }
 
 type CLIConfig struct {
