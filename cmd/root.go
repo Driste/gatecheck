@@ -61,6 +61,7 @@ func NewRootCommand(config CLIConfig) *cobra.Command {
 	command.AddCommand(NewValidateCmd(config.AutoDecoderTimeout))
 	command.AddCommand(NewEPSSCmd(config.EPSSService))
 	command.AddCommand(NewExportCmd(config.DDExportService, config.DDExportTimeout, config.DDEngagement))
+	command.AddCommand(NewServeCmd())
 
 	return command
 }
