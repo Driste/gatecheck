@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"gopkg.in/yaml.v3"
 	"io"
 	"os"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestInspect(t *testing.T) {
@@ -29,8 +30,8 @@ func TestInspect(t *testing.T) {
 
 	t.Run("InspectWithContext", func(t *testing.T) {
 		for _, item := range getTestTable() {
-			if rType, _ := InspectWithContext(context.Background(), item.Case); rType != item.Expected {
-				t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, rType)
+			if r, _ := InspectWithContext(context.Background(), item.Case); r.Type != item.Expected {
+				t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, r.Type)
 			}
 		}
 	})
@@ -46,8 +47,8 @@ func TestInspect(t *testing.T) {
 
 	t.Run("Inspect", func(t *testing.T) {
 		for _, item := range getTestTable() {
-			if rType, _ := InspectWithContext(context.Background(), item.Case); rType != item.Expected {
-				t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, rType)
+			if r, _ := InspectWithContext(context.Background(), item.Case); r.Type != item.Expected {
+				t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, r.Type)
 			}
 		}
 	})
@@ -92,7 +93,7 @@ func TestDetectGitleaksBytes(t *testing.T) {
 	}
 
 	for _, item := range TestTable {
-		if rType := detectGitleaksBytes(item.Case); rType != item.Expected {
+		if rType, _ := detectGitleaksBytes(item.Case); rType != item.Expected {
 			t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, rType)
 		}
 	}
@@ -107,7 +108,7 @@ func TestDetectSemgrep(t *testing.T) {
 	}
 
 	for _, item := range testTable {
-		if rType := detectSemgrepBytes(item.Case); rType != item.Expected {
+		if rType, _ := detectSemgrepBytes(item.Case); rType != item.Expected {
 			t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, rType)
 		}
 	}
@@ -122,7 +123,7 @@ func TestDetectGrype(t *testing.T) {
 	}
 
 	for _, item := range testTable {
-		if rType := detectGrypeBytes(item.Case); rType != item.Expected {
+		if rType, _ := detectGrypeBytes(item.Case); rType != item.Expected {
 			t.Fatalf("Expected %s for %+v, Got %s", item.Expected, item.Case, rType)
 		}
 	}
@@ -135,7 +136,7 @@ func TestDetectBundleBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if rType := detectBundleBytes(bundleBuf.Bytes()); rType != GatecheckBundle {
+	if rType, _ := detectBundleBytes(bundleBuf.Bytes()); rType != GatecheckBundle {
 		t.Fatal("Expected:", GatecheckBundle, "Got:", rType)
 	}
 }
@@ -177,16 +178,16 @@ func TestRead(t *testing.T) {
 
 	t.Run("Read", func(t *testing.T) {
 		for i, item := range getTestTable() {
-			if rType, _, _ := Read(item.Case); rType != item.Expected {
-				t.Fatalf("Expected %s for case %d, Got %s", item.Expected, i, rType)
+			if r, _, _ := Read(item.Case); r.Type != item.Expected {
+				t.Fatalf("Expected %s for case %d, Got %s", item.Expected, i, r.Type)
 			}
 		}
 	})
 
 	t.Run("ReadWithContext", func(t *testing.T) {
 		for i, item := range getTestTable() {
-			if rType, _, _ := ReadWithContext(context.Background(), item.Case); rType != item.Expected {
-				t.Fatalf("Item %d: Expected %s for %+v, Got %s", i, item.Expected, item.Case, rType)
+			if r, _ := ReadWithContext(context.Background(), item.Case); r.Type != item.Expected {
+				t.Fatalf("Item %d: Expected %s for %+v, Got %s", i, item.Expected, item.Case, r)
 			}
 		}
 	})
@@ -195,7 +196,7 @@ func TestRead(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
 
-		if _, _, err := ReadWithContext(ctx, bytes.NewBuffer(grypeBytes)); errors.Is(err, context.Canceled) != true {
+		if _, err := ReadWithContext(ctx, bytes.NewBuffer(grypeBytes)); errors.Is(err, context.Canceled) != true {
 			t.FailNow()
 		}
 	})

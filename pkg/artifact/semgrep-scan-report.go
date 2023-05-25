@@ -3,15 +3,19 @@ package artifact
 import (
 	"errors"
 	"fmt"
+	"strings"
+
 	semgrep "github.com/BacchusJackson/go-semgrep"
 	gcStrings "github.com/gatecheckdev/gatecheck/pkg/strings"
-	"strings"
 )
 
 // SemgrepScanReport is a data model for a Semgrep Output scan produced by `semgrep scan --json`
 type SemgrepScanReport semgrep.SemgrepOutputV1Jsonschema
 
 var SemgrepFailedValidation = errors.New("semgrep failed validation")
+
+// Enforce Report Interface
+var _ Report = SemgrepScanReport{}
 
 func (r SemgrepScanReport) String() string {
 	table := new(gcStrings.Table).WithHeader("Path", "Line", "Level", "link", "CWE Message")
@@ -39,8 +43,12 @@ type SemgrepConfig struct {
 	Error   int `yaml:"error" json:"error"`
 }
 
-func ValidateSemgrep(config SemgrepConfig, scanReport SemgrepScanReport) error {
-	allowed := map[string]int{"INFO": config.Info, "WARNING": config.Warning, "ERROR": config.Error}
+func (scanReport SemgrepScanReport) Validate(config Config) error {
+	if config.Semgrep == nil {
+		return errors.New("no Semgrep configuration specified")
+	}
+
+	allowed := map[string]int{"INFO": config.Semgrep.Info, "WARNING": config.Semgrep.Warning, "ERROR": config.Semgrep.Error}
 	found := map[string]int{"INFO": 0, "WARNING": 0, "ERROR": 0}
 
 	for _, result := range scanReport.Results {

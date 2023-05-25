@@ -41,7 +41,7 @@ func TestAllowList(t *testing.T) {
 
 	t.Log(report)
 
-	if err := ValidateGrype(*config.Grype, *report); err != nil {
+	if err := report.Validate(*config); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -60,7 +60,7 @@ func TestDenyList(t *testing.T) {
 
 	t.Log(report)
 
-	if err := ValidateGrype(*config.Grype, *report); err == nil {
+	if err := report.Validate(*config); err == nil {
 		t.Fatal("Expected Validation error for CVE-2023-3")
 	}
 }

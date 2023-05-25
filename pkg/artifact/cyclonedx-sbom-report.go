@@ -18,6 +18,9 @@ var ErrCyclonedxValidationFailed = errors.New("cyclonedx validation failed")
 
 var severityOrder = gcStrings.StrOrder{"Critical", "High", "Medium", "Low", "Info", "None", "Unknown"}
 
+// Enforce Report Interface
+var _ Report = CyclonedxSbomReport{}
+
 func (r CyclonedxSbomReport) String() string {
 	log.Infof("Parsing and Displaying Cyclone SBOM")
 
@@ -89,7 +92,7 @@ func (r CyclonedxSbomReport) vulnsString() string {
 }
 
 // Adds the components that are not vulnerabilities as one with severity as none
-func (r *CyclonedxSbomReport) ShimComponentsAsVulnerabilities() *CyclonedxSbomReport {
+func (r *CyclonedxSbomReport) ShimComponentsAsVulnerabilities() {
 	nv := cdx.Vulnerability{
 		ID: "",
 		Ratings: &[]cdx.VulnerabilityRating{
@@ -112,7 +115,6 @@ func (r *CyclonedxSbomReport) ShimComponentsAsVulnerabilities() *CyclonedxSbomRe
 		r.Vulnerabilities = &[]cdx.Vulnerability{}
 	}
 	*r.Vulnerabilities = append(*r.Vulnerabilities, nv)
-	return r
 }
 
 type CyclonedxConfig struct {
@@ -132,18 +134,23 @@ type CyclonedxListItem struct {
 	Reason string `yaml:"reason" json:"reason"`
 }
 
-func ValidateCyclonedx(config CyclonedxConfig, scanReport CyclonedxSbomReport) error {
+func (r CyclonedxSbomReport) Validate(config Config) error {
+	// No vulnerabilities or config so just consider valid
+	if config.Cyclonedx == nil || (&r).Vulnerabilities == nil {
+		return nil
+	}
+
 	found := map[string]int{"Critical": 0, "High": 0, "Medium": 0, "Low": 0, "Info": 0, "None": 0, "Unknown": 0}
 	allowed := map[string]int{
-		"Critical": config.Critical, "High": config.High, "Medium": config.Medium,
-		"Low": config.Low, "None": config.None, "Info": config.Info, "Unknown": config.Unknown,
+		"Critical": config.Cyclonedx.Critical, "High": config.Cyclonedx.High, "Medium": config.Cyclonedx.Medium,
+		"Low": config.Cyclonedx.Low, "None": config.Cyclonedx.None, "Info": config.Cyclonedx.Info, "Unknown": config.Cyclonedx.Unknown,
 	}
 	foundDenied := make([]cdx.Vulnerability, 0)
 
 LOOPMATCH:
-	for _, item := range *scanReport.Vulnerabilities {
+	for _, item := range *r.Vulnerabilities {
 
-		for _, allowed := range config.AllowList {
+		for _, allowed := range config.Cyclonedx.AllowList {
 			if strings.Compare((&item).ID, allowed.Id) == 0 {
 
 				log.Infof("%s Allowed. Reason: %s", (&item).ID, allowed.Reason)
@@ -151,7 +158,7 @@ LOOPMATCH:
 			}
 		}
 
-		for _, denied := range config.DenyList {
+		for _, denied := range config.Cyclonedx.DenyList {
 			if (&item).ID == denied.Id {
 				log.Infof("%s Denied. Reason: %s", (&item).ID, denied.Reason)
 				foundDenied = append(foundDenied, item)

@@ -45,7 +45,7 @@ func TestCyclonedxAllowList(t *testing.T) {
 
 	t.Log(report)
 
-	if err := ValidateCyclonedx(*config.Cyclonedx, *report); err != nil {
+	if err := report.Validate(*config); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -67,7 +67,7 @@ func TestCyclonedxDenyList(t *testing.T) {
 
 	t.Log(report)
 
-	if err := ValidateCyclonedx(*config.Cyclonedx, *report); err == nil {
+	if err := report.Validate(*config); err == nil {
 		t.Fatal("Expected Validation error for CVE-2023-3")
 	}
 }
@@ -89,7 +89,7 @@ func TestCyclonedxSbomShim(t *testing.T) {
 
 	t.Log(report)
 
-	report = report.ShimComponentsAsVulnerabilities()
+	report.ShimComponentsAsVulnerabilities()
 	if strings.Contains(report.vulnsString(), "Total: 6") == false {
 		t.Fatal("Expected 'Total: 6' in ", report.vulnsString())
 	}

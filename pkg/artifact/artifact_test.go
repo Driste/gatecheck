@@ -24,15 +24,14 @@ func TestValidateGitleaks(t *testing.T) {
 	if strings.Contains(gitleaksScan.String(), "jwt") == false {
 		t.Fatal("string formatting or unmarshalling failed")
 	}
-
-	if err := ValidateGitleaks(GitleaksConfig{SecretsAllowed: true}, gitleaksScan); err != nil {
+	if err := gitleaksScan.Validate(Config{Gitleaks: &GitleaksConfig{SecretsAllowed: true}}); err != nil {
 		t.Fatal("Should pass")
 	}
 
-	if err := ValidateGitleaks(GitleaksConfig{SecretsAllowed: false}, gitleaksScan); errors.Is(err, GitleaksValidationFailed) != true {
+	if err := gitleaksScan.Validate(Config{Gitleaks: &GitleaksConfig{SecretsAllowed: false}}); errors.Is(err, GitleaksValidationFailed) != true {
 		t.Fatal("Should Fail")
 	}
-	if err := ValidateGitleaks(GitleaksConfig{SecretsAllowed: false}, GitleaksScanReport{}); err != nil {
+	if err := (GitleaksScanReport{}).Validate(Config{Gitleaks: &GitleaksConfig{SecretsAllowed: false}}); err != nil {
 		t.Fatal("Should pass, len 0")
 	}
 
@@ -58,12 +57,12 @@ func TestValidateCyclonedx(t *testing.T) {
 		t.Fatal("string formatting failed")
 	}
 
-	if err := ValidateCyclonedx(CyclonedxConfig{Critical: 0}, cyclonedxSbom); errors.Is(err, ErrCyclonedxValidationFailed) != true {
+	if err := cyclonedxSbom.Validate(Config{Cyclonedx: &CyclonedxConfig{Critical: 0}}); errors.Is(err, ErrCyclonedxValidationFailed) != true {
 		t.Log(cyclonedxSbom)
 		t.Fatal("Expected Failed validation")
 	}
 
-	if err := ValidateCyclonedx(CyclonedxConfig{Critical: -1, High: -1}, cyclonedxSbom); err != nil {
+	if err := cyclonedxSbom.Validate(Config{Cyclonedx: &CyclonedxConfig{Critical: -1, High: -1}}); err != nil {
 		t.Log(cyclonedxSbom)
 		t.Fatal("Expected passed validation")
 	}
@@ -82,12 +81,12 @@ func TestValidateGrype(t *testing.T) {
 		t.Fatal("string formatting failed")
 	}
 
-	if err := ValidateGrype(GrypeConfig{Critical: 0}, grypeScan); errors.Is(err, GrypeValidationFailed) != true {
+	if err := grypeScan.Validate(Config{Grype: &GrypeConfig{Critical: 0}}); errors.Is(err, GrypeValidationFailed) != true {
 		t.Log(grypeScan)
 		t.Fatal("Expected Failed validation")
 	}
 
-	if err := ValidateGrype(GrypeConfig{Critical: -1, High: -1}, grypeScan); err != nil {
+	if err := grypeScan.Validate(Config{Grype: &GrypeConfig{Critical: -1, High: -1}}); err != nil {
 		t.Log(grypeScan)
 		t.Fatal("Expected passed validation")
 	}
@@ -108,17 +107,17 @@ func TestValidateSemgrep(t *testing.T) {
 		t.Fatal("string formatting failed")
 	}
 
-	if err := ValidateSemgrep(SemgrepConfig{Warning: 0}, semgrepScan); errors.Is(err, SemgrepFailedValidation) != true {
+	if err := semgrepScan.Validate(Config{Semgrep: &SemgrepConfig{Warning: 0}}); errors.Is(err, SemgrepFailedValidation) != true {
 		t.Log(semgrepScan)
 		t.Fatal("Expected Failed validation")
 	}
 
-	if err := ValidateSemgrep(SemgrepConfig{Warning: -1, Error: -1}, semgrepScan); err != nil {
+	if err := semgrepScan.Validate(Config{Semgrep: &SemgrepConfig{Warning: -1, Error: -1}}); err != nil {
 		t.Log(semgrepScan)
 		t.Fatal("Expected passed validation")
 	}
 
-	t.Log(ValidateSemgrep(SemgrepConfig{Warning: 0}, semgrepScan))
+	t.Log(semgrepScan.Validate(Config{Semgrep: &SemgrepConfig{Warning: 0}}))
 }
 
 func TestEncoding(t *testing.T) {

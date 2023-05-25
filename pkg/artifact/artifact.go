@@ -5,13 +5,26 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"github.com/dustin/go-humanize"
 	"io"
 	"strings"
+
+	"github.com/dustin/go-humanize"
+	"github.com/gatecheckdev/gatecheck/pkg/epss"
 )
+
+type Report interface {
+	String() string
+	Validate(Config) error
+}
+
+type CVEReport interface {
+	Report
+	CVEs() []epss.CVE
+}
 
 type Artifact struct {
 	Label   string
+	Type    Type
 	Digest  []byte
 	Content []byte
 }

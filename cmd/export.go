@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -46,15 +47,14 @@ func NewExportCmd(
 			ctx, cancel := context.WithTimeout(context.Background(), ddTimeout)
 			defer cancel()
 
-			rType, fileBytes, err := artifact.ReadWithContext(ctx, f)
-			log.Infof("file size: %d", len(fileBytes))
-			log.Infof("Detected File Type: %s", rType)
+			result, err := artifact.ReadWithContext(ctx, f)
+			log.Infof("Detected File Type: %s", result.Type)
 			if err != nil {
 				return fmt.Errorf("%w: %v", ErrorEncoding, err)
 			}
 
 			var ddScanType defectdojo.ScanType
-			switch rType {
+			switch result.Type {
 			case artifact.Cyclonedx:
 				ddScanType = defectdojo.CycloneDX
 			case artifact.Grype:
@@ -67,14 +67,19 @@ func NewExportCmd(
 				return fmt.Errorf("%w: Unsupported file type", ErrorEncoding)
 			}
 
-			if rType != artifact.Cyclonedx && fullBom {
+			if result.Type != artifact.Cyclonedx && fullBom {
 				return errors.New("--full-bom is only permitted with a CycloneDx file")
 			}
 
+			fileBytes, err := io.ReadAll(f)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrorEncoding, err)
+			}
+
 			if fullBom {
-				buf := bytes.NewBuffer(fileBytes)
-				c := artifact.DecodeJSON[artifact.CyclonedxSbomReport](buf)
-				fileBytes, _ = json.Marshal(c.ShimComponentsAsVulnerabilities())
+				var report = result.Report.(artifact.CyclonedxSbomReport)
+				report.ShimComponentsAsVulnerabilities()
+				fileBytes, _ = json.Marshal(report)
 			}
 
 			return ddService.Export(ctx, bytes.NewBuffer(fileBytes), ddEngagement, ddScanType)

@@ -67,7 +67,7 @@ func TestNewBundleCmd(t *testing.T) {
 		// Check bundle for the artifact
 		postOutFile := MustOpen(outFile, t.Fatal)
 		bun := artifact.DecodeBundle(postOutFile)
-		genericFile, ok := bun.Generic["random-1.file"]
+		genericFile, ok := bun.Artifacts["random-1.file"]
 		if !ok {
 			t.Fatal("Could not extract generic file")
 		}

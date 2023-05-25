@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -49,37 +48,16 @@ func NewPrintCommand(decodeTimeout time.Duration, pipedFile *os.File) *cobra.Com
 }
 
 func ParseAndFPrint(r io.Reader, w io.Writer, timeout time.Duration) error {
-	var err error
-
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	rType, b, err := artifact.ReadWithContext(ctx, r)
-
+	response, err := artifact.ReadWithContext(ctx, r)
 	if err != nil {
 		return err
 	}
 
-	buf := bytes.NewBuffer(b)
-	log.Infof("Bytes received: %d", len(b))
-	log.Infof("Detected Type: %s", rType)
+	log.Infof("Detected Type: %s", response.Type)
+	fmt.Fprintln(w, response.Report.String())
 
-	// No need to check decode errors since it's decoded in the DetectReportType Function
-	switch rType {
-	case artifact.Cyclonedx:
-		_, err = fmt.Fprintln(w, artifact.DecodeJSON[artifact.CyclonedxSbomReport](buf))
-	case artifact.Semgrep:
-		_, err = fmt.Fprintln(w, artifact.DecodeJSON[artifact.SemgrepScanReport](buf))
-	case artifact.Grype:
-		_, err = fmt.Fprintln(w, artifact.DecodeJSON[artifact.GrypeScanReport](buf))
-	case artifact.Gitleaks:
-		_, err = fmt.Fprintln(w, artifact.DecodeJSON[artifact.GitleaksScanReport](buf))
-	case artifact.GatecheckBundle:
-		bundle := artifact.DecodeBundle(buf)
-		_, err = fmt.Fprintln(w, bundle.String())
-	default:
-		_, err = fmt.Fprintln(w, "Unsupported file type")
-	}
-
-	return err
+	return nil
 }

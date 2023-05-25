@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gatecheckdev/gatecheck/pkg/artifact"
 	"github.com/gatecheckdev/gatecheck/pkg/blacklist"
-	"github.com/gatecheckdev/gatecheck/pkg/epss"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -104,107 +102,19 @@ func NewValidateCmd(decodeTimeout time.Duration) *cobra.Command {
 	return cmd
 }
 
-func NewEPSSCmd(service EPSSService) *cobra.Command {
-
-	var EPSSCmd = &cobra.Command{
-		Use:   "epss <Grype FILE>",
-		Short: "Query first.org for Exploit Prediction Scoring System (EPSS)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			var grypeScan artifact.GrypeScanReport
-
-			f, err := os.Open(args[0])
-			if err != nil {
-				return fmt.Errorf("%w: %v", ErrorFileAccess, err)
-			}
-
-			if err := json.NewDecoder(f).Decode(&grypeScan); err != nil {
-				return fmt.Errorf("%w: %v", ErrorEncoding, err)
-			}
-
-			CVEs := make([]epss.CVE, len(grypeScan.Matches))
-
-			for i, match := range grypeScan.Matches {
-				CVEs[i] = epss.CVE{
-					ID:       match.Vulnerability.ID,
-					Severity: match.Vulnerability.Severity,
-					Link:     match.Vulnerability.DataSource,
-				}
-			}
-
-			data, err := service.Get(CVEs)
-			if err != nil {
-				return fmt.Errorf("%w: %s", ErrorAPI, err)
-			}
-
-			cmd.Println(epss.Sprint(data))
-			return nil
-		},
-	}
-
-	return EPSSCmd
-}
-
 func ParseAndValidate(r io.Reader, config artifact.Config, timeout time.Duration) error {
 	var err error
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	rType, b, err := artifact.ReadWithContext(ctx, r)
-
+	result, err := artifact.ReadWithContext(ctx, r)
 	if err != nil {
 		return err
 	}
-
-	buf := bytes.NewBuffer(b)
-
-	// No need to check decode errors since it's decoded in the DetectReportType Function
-	switch rType {
-	case artifact.Semgrep:
-		if config.Semgrep == nil {
-			return errors.New("no Semgrep configuration specified")
-		}
-		err = artifact.ValidateSemgrep(*config.Semgrep, artifact.DecodeJSON[artifact.SemgrepScanReport](buf))
-	case artifact.Cyclonedx:
-		if config.Cyclonedx == nil {
-			return errors.New("no CycloneDx configuration specified")
-		}
-		err = artifact.ValidateCyclonedx(*config.Cyclonedx, artifact.DecodeJSON[artifact.CyclonedxSbomReport](buf))
-	case artifact.Grype:
-		if config.Grype == nil {
-			return errors.New("no Grype configuration specified")
-		}
-		err = artifact.ValidateGrype(*config.Grype, artifact.DecodeJSON[artifact.GrypeScanReport](buf))
-	case artifact.Gitleaks:
-		if config.Gitleaks == nil {
-			return errors.New("no Gitleaks configuration specified")
-		}
-		err = artifact.ValidateGitleaks(*config.Gitleaks, artifact.DecodeJSON[artifact.GitleaksScanReport](buf))
-	case artifact.GatecheckBundle:
-		var errStrings []string
-		bundle := artifact.DecodeBundle(buf)
-		if err := bundle.ValidateCyclonedx(config.Cyclonedx); err != nil {
-			errStrings = append(errStrings, err.Error())
-		}
-		if err := bundle.ValidateGrype(config.Grype); err != nil {
-			errStrings = append(errStrings, err.Error())
-		}
-		if err := bundle.ValidateSemgrep(config.Semgrep); err != nil {
-			errStrings = append(errStrings, err.Error())
-		}
-		if err := bundle.ValidateGitleaks(config.Gitleaks); err != nil {
-			errStrings = append(errStrings, err.Error())
-		}
-		if len(errStrings) == 0 {
-			return nil
-		}
-		return errors.New(strings.Join(errStrings, "\n"))
-
-	default:
-		err = errors.New("unsupported scan type")
+	if result.Type == artifact.Unsupported {
+		return errors.New("unsupported scan type")
 	}
 
-	return err
-
+	return result.Report.Validate(config)
 }

@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/gob"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 
@@ -16,18 +14,14 @@ import (
 )
 
 type Bundle struct {
-	CyclonedxSbom Artifact
-	GrypeScan     Artifact
-	SemgrepScan   Artifact
-	GitleaksScan  Artifact
-	Generic       map[string]Artifact
-	PipelineID    string
-	PipelineURL   string
-	ProjectName   string
+	Artifacts   map[string]Artifact
+	PipelineID  string
+	PipelineURL string
+	ProjectName string
 }
 
 func NewBundle() *Bundle {
-	return &Bundle{Generic: map[string]Artifact{}}
+	return &Bundle{Artifacts: map[string]Artifact{}}
 }
 
 func (b *Bundle) Add(artifacts ...Artifact) error {
@@ -44,21 +38,11 @@ func (b *Bundle) add(artifact Artifact) error {
 		return errors.New("artifact is missing a label")
 	}
 	// Directly taking bytes, no possibility of error
-	rType, _ := Inspect(bytes.NewBuffer(artifact.ContentBytes()))
+	result, _ := Inspect(bytes.NewBuffer(artifact.ContentBytes()))
 
 	// No need to check decode errors since it's decoded in the DetectReportType Function
-	switch rType {
-	case Semgrep:
-		b.SemgrepScan = artifact
-	case Cyclonedx:
-		b.CyclonedxSbom = artifact
-	case Grype:
-		b.GrypeScan = artifact
-	case Gitleaks:
-		b.GitleaksScan = artifact
-	case Unsupported:
-		b.Generic[artifact.Label] = artifact
-	}
+	artifact.Type = result.Type
+	b.Artifacts[artifact.Label] = artifact
 
 	return nil
 }
@@ -66,11 +50,11 @@ func (b *Bundle) add(artifact Artifact) error {
 func (b *Bundle) String() string {
 	table := new(gcStrings.Table).WithHeader("Type", "Label", "Digest", "Size")
 
-	items := []Artifact{b.CyclonedxSbom, b.GrypeScan, b.SemgrepScan, b.GitleaksScan}
-	types := []string{"CycloneDX", "Grype", "Semgrep", "Gitleaks"}
-	for _, v := range b.Generic {
+	items := []Artifact{}
+	types := []string{}
+	for _, v := range b.Artifacts {
 		items = append(items, v)
-		types = append(types, "Generic File")
+		types = append(types, string(v.Type))
 	}
 
 	totalSize := uint64(0)
@@ -88,87 +72,119 @@ func (b *Bundle) String() string {
 	return sb.String()
 }
 
-func (b *Bundle) ValidateCyclonedx(config *CyclonedxConfig) error {
-	var cyclonedxSbom CyclonedxSbomReport
-	// No config
-	if config == nil {
-		return nil
-	}
-	// No scan in bundle to validate
-	if len(b.CyclonedxSbom.Content) == 0 {
-		log.Info("No cyclonedx content... skipping validation")
-		return nil
+func (b *Bundle) Validate(config Config) error {
+	var errStrings []string
+
+	for _, a := range b.Artifacts {
+		if len(a.Content) == 0 {
+			log.Infof("No '%s' content... skipping validation", a.Type)
+			return nil
+		}
+
+		// TODO: make this know by the type instead of having to inspect
+		result, err := Inspect(bytes.NewBuffer(a.ContentBytes()))
+		if err != nil {
+			return err
+		}
+
+		if result.Type == Unsupported {
+			continue
+		}
+
+		log.Infof("Validating '%s' Schema", a.Type)
+		if err := result.Report.Validate(config); err != nil {
+			errStrings = append(errStrings, err.Error())
+		}
 	}
 
-	// Problem parsing the artifact
-	if err := json.Unmarshal(b.CyclonedxSbom.ContentBytes(), &cyclonedxSbom); err != nil {
-		log.Info("Validating CycloneDX Schema")
-		return fmt.Errorf("%w: %v", ErrCyclonedxValidationFailed, err)
+	if len(errStrings) != 0 {
+		return errors.New(strings.Join(errStrings, "\n"))
 	}
 
-	log.Info("Validating CycloneDX Findings")
-	return ValidateCyclonedx(*config, cyclonedxSbom)
+	return nil
 }
 
-func (b *Bundle) ValidateGrype(config *GrypeConfig) error {
-	var grypeScan GrypeScanReport
-	// No config
-	if config == nil {
-		return nil
-	}
-	// No scan in bundle to validate
-	if len(b.GrypeScan.Content) == 0 {
-		log.Info("No grype content... skipping validation")
-		return nil
-	}
+// func (b *Bundle) ValidateCyclonedx(config *Config) error {
+// 	var cyclonedxSbom CyclonedxSbomReport
+// 	// No config
+// 	if config == nil {
+// 		return nil
+// 	}
+// 	// No scan in bundle to validate
+// 	if len(b.CyclonedxSbom.Content) == 0 {
+// 		log.Info("No cyclonedx content... skipping validation")
+// 		return nil
+// 	}
 
-	// Problem parsing the artifact
-	if err := json.Unmarshal(b.GrypeScan.ContentBytes(), &grypeScan); err != nil {
-		return fmt.Errorf("%w: %v", GrypeValidationFailed, err)
-	}
+// 	// Problem parsing the artifact
+// 	if err := json.Unmarshal(b.CyclonedxSbom.ContentBytes(), &cyclonedxSbom); err != nil {
+// 		log.Info("Validating CycloneDX Schema")
+// 		return fmt.Errorf("%w: %v", ErrCyclonedxValidationFailed, err)
+// 	}
 
-	return ValidateGrype(*config, grypeScan)
-}
+// 	log.Info("Validating CycloneDX Findings")
+// 	return cyclonedxSbom.Validate(*config)
+// }
 
-func (b *Bundle) ValidateSemgrep(config *SemgrepConfig) error {
-	var semgrepScan SemgrepScanReport
-	// No config
-	if config == nil {
-		return nil
-	}
-	// No scan in bundle to validate
-	if len(b.SemgrepScan.ContentBytes()) == 0 {
-		log.Info("No semgrep content... skipping validation")
-		return nil
-	}
+// func (b *Bundle) ValidateGrype(config *Config) error {
+// 	var grypeScan GrypeScanReport
+// 	// No config
+// 	if config == nil {
+// 		return nil
+// 	}
+// 	// No scan in bundle to validate
+// 	if len(b.GrypeScan.Content) == 0 {
+// 		log.Info("No grype content... skipping validation")
+// 		return nil
+// 	}
 
-	// Problem parsing the artifact
-	if err := json.Unmarshal(b.SemgrepScan.ContentBytes(), &semgrepScan); err != nil {
-		return fmt.Errorf("%w: %v", SemgrepFailedValidation, err)
-	}
+// 	// Problem parsing the artifact
+// 	if err := json.Unmarshal(b.GrypeScan.ContentBytes(), &grypeScan); err != nil {
+// 		return fmt.Errorf("%w: %v", GrypeValidationFailed, err)
+// 	}
 
-	return ValidateSemgrep(*config, semgrepScan)
-}
+// 	return grypeScan.Validate(*config)
+// }
 
-func (b *Bundle) ValidateGitleaks(config *GitleaksConfig) error {
-	var gitleaksScan GitleaksScanReport
-	// No config
-	if config == nil {
-		return nil
-	}
-	// No scan in bundle to validate
-	if len(b.GitleaksScan.ContentBytes()) == 0 {
-		log.Info("No gitleaks content... skipping validation")
-		return nil
-	}
+// func (b *Bundle) ValidateSemgrep(config *Config) error {
+// 	var semgrepScan SemgrepScanReport
+// 	// No config
+// 	if config == nil {
+// 		return nil
+// 	}
+// 	// No scan in bundle to validate
+// 	if len(b.SemgrepScan.ContentBytes()) == 0 {
+// 		log.Info("No semgrep content... skipping validation")
+// 		return nil
+// 	}
 
-	// Problem parsing the artifact
-	if err := json.Unmarshal(b.GitleaksScan.ContentBytes(), &gitleaksScan); err != nil {
-		return fmt.Errorf("%w: %v", GitleaksValidationFailed, err)
-	}
+// 	// Problem parsing the artifact
+// 	if err := json.Unmarshal(b.SemgrepScan.ContentBytes(), &semgrepScan); err != nil {
+// 		return fmt.Errorf("%w: %v", SemgrepFailedValidation, err)
+// 	}
 
-	return ValidateGitleaks(*config, gitleaksScan)
-}
+// 	return semgrepScan.Validate(*config)
+// }
+
+// func (b *Bundle) ValidateGitleaks(config *Config) error {
+// 	var gitleaksScan GitleaksScanReport
+// 	// No config
+// 	if config == nil {
+// 		return nil
+// 	}
+// 	// No scan in bundle to validate
+// 	if len(b.GitleaksScan.ContentBytes()) == 0 {
+// 		log.Info("No gitleaks content... skipping validation")
+// 		return nil
+// 	}
+
+// 	// Problem parsing the artifact
+// 	if err := json.Unmarshal(b.GitleaksScan.ContentBytes(), &gitleaksScan); err != nil {
+// 		return fmt.Errorf("%w: %v", GitleaksValidationFailed, err)
+// 	}
+
+// 	return gitleaksScan.Validate(*config)
+// }
 
 type Encoder struct {
 	w io.Writer
